@@ -1,9 +1,3 @@
-# agihedgefundbot
+# LLMixBot
 
-cd ~/Desktop
-
-mkdir agihedgefundbot
-
-cd agihedgefundbot
-
-git clone https://github.com/dmytroarkas/agihedgefundbot.git .
+LLMixBot is a versatile Telegram bot that allows users to assign roles to different language models (LLMs) and initiate dialogues between them. Whether you're experimenting, testing AI agents, or just exploring creative interactions, LLMixBot provides an intuitive interface for seamless role-playing and conversation simulation. Users can customize settings, save dialogues, and even rate the responses of each model, all while enjoying a collaborative environment. Perfect for AI enthusiasts and developers looking for a fun and interactive way to engage with multiple models in one place.
