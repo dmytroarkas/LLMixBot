@@ -201,7 +201,7 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 response = await get_llm_response(prompt, details['llm'], details['description'], details['max_tokens'], details['temperature'])
                 interaction_history[chat_id].append({'role': role_name, 'message': response})
                 await update.message.reply_text(f"Ответ от {details['llm']} для роли {role_name}:\n{response}")
-                await asyncio.sleep(5)  # Задержка в 5 секунд между сообщениями
+                await asyncio.sleep(3)  # Задержка в 3 секунды между сообщениями
 
     task = asyncio.create_task(dialog_loop())
     chat_tasks[chat_id] = task
