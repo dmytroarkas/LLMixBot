@@ -35,6 +35,7 @@ WELCOME_MESSAGE = """
 /viewroles - Просмотреть текущие настройки ролей
 /startdialog - Запустить диалог ролей
 /stop - Остановить текущий диалог
+/clearroles - Очистить все настроенные роли
 
 Используйте эти команды для управления ролями и их взаимодействием.
 """
@@ -99,6 +100,11 @@ async def view_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
         roles_info += f"Роль: {role_name}\nОписание: {details['description']}\nLLM: {details['llm']}\n\n"
     
     await update.message.reply_text(roles_info)
+
+async def clear_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    user_roles[chat_id] = {}
+    await update.message.reply_text("Все роли были очищены.")
 
 async def get_llm_response(prompt, llm, description):
     try:
@@ -191,6 +197,7 @@ def main():
     application.add_handler(CommandHandler("viewroles", view_roles))
     application.add_handler(CommandHandler("startdialog", start_dialog))
     application.add_handler(CommandHandler("stop", stop_dialog))
+    application.add_handler(CommandHandler("clearroles", clear_roles))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
