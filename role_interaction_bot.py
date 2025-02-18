@@ -57,6 +57,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     message_text = update.message.text
 
+    # Инициализация записи для chat_id, если она отсутствует
+    if chat_id not in user_roles:
+        user_roles[chat_id] = {}
+
     if context.user_data.get('awaiting_role_name'):
         context.user_data['role_name'] = message_text
         context.user_data['awaiting_role_name'] = False
