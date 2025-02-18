@@ -19,7 +19,7 @@ XAI_API_KEY = os.getenv('XAI_API_KEY')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Глобальные переменные для хранения состояний
-user_roles = {}  # формат: {chat_id: {'role_name': {'description': '...', 'llm': '...'}}}
+user_roles = {}  # формат: {chat_id: {'role_name': {'description': '...', 'llm': '...', 'max_tokens': int, 'temperature': float}}}
 interaction_history = {}  # формат: {chat_id: [{'role': 'role_name', 'message': 'text'}]}
 chat_tasks = {}  # формат: {chat_id: task}
 
@@ -66,14 +66,36 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if context.user_data.get('awaiting_role_description'):
         role_name = context.user_data['role_name']
-        user_roles[chat_id][role_name] = {'description': message_text, 'llm': None}
+        user_roles[chat_id][role_name] = {'description': message_text, 'llm': None, 'max_tokens': 1000, 'temperature': 0.7}
         context.user_data['awaiting_role_description'] = False
-        await update.message.reply_text("Выберите модель LLM для роли:")
-        keyboard = [
-            [InlineKeyboardButton(llm, callback_data=f"assign_{role_name}_{llm}") for llm in AVAILABLE_LLM]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("Выберите LLM:", reply_markup=reply_markup)
+        await update.message.reply_text("Введите максимальную длину сообщений (например, 1000):")
+        context.user_data['awaiting_max_tokens'] = True
+        return
+
+    if context.user_data.get('awaiting_max_tokens'):
+        try:
+            max_tokens = int(message_text)
+            user_roles[chat_id][context.user_data['role_name']]['max_tokens'] = max_tokens
+            context.user_data['awaiting_max_tokens'] = False
+            await update.message.reply_text("Введите температуру для LLM (например, 0.7):")
+            context.user_data['awaiting_temperature'] = True
+        except ValueError:
+            await update.message.reply_text("Пожалуйста, введите корректное число для длины сообщений.")
+        return
+
+    if context.user_data.get('awaiting_temperature'):
+        try:
+            temperature = float(message_text)
+            user_roles[chat_id][context.user_data['role_name']]['temperature'] = temperature
+            context.user_data['awaiting_temperature'] = False
+            await update.message.reply_text("Выберите модель LLM для роли:")
+            keyboard = [
+                [InlineKeyboardButton(llm, callback_data=f"assign_{context.user_data['role_name']}_{llm}") for llm in AVAILABLE_LLM]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text("Выберите LLM:", reply_markup=reply_markup)
+        except ValueError:
+            await update.message.reply_text("Пожалуйста, введите корректное число для температуры.")
         return
 
     await update.message.reply_text("Используйте /addrole для добавления новой роли.")
@@ -97,7 +119,9 @@ async def view_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     roles_info = "Текущие настройки ролей:\n"
     for role_name, details in user_roles[chat_id].items():
-        roles_info += f"Роль: {role_name}\nОписание: {details['description']}\nLLM: {details['llm']}\n\n"
+        roles_info += (f"Роль: {role_name}\nОписание: {details['description']}\n"
+                       f"LLM: {details['llm']}\nМакс. длина: {details['max_tokens']}\n"
+                       f"Температура: {details['temperature']}\n\n")
     
     await update.message.reply_text(roles_info)
 
@@ -106,23 +130,23 @@ async def clear_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_roles[chat_id] = {}
     await update.message.reply_text("Все роли были очищены.")
 
-async def get_llm_response(prompt, llm, description):
+async def get_llm_response(prompt, llm, description, max_tokens, temperature):
     try:
         if llm == 'OpenAI':
             client = AsyncOpenAI(api_key=OPENAI_API_KEY)
             response = await client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "system", "content": description}, {"role": "user", "content": prompt}],
-                max_tokens=1000,
-                temperature=0.7
+                max_tokens=max_tokens,
+                temperature=temperature
             )
             return response.choices[0].message.content
         elif llm == 'Anthropic':
             client = Anthropic(api_key=ANTHROPIC_API_KEY)
             message = client.messages.create(
                 model="claude-3-5-sonnet-20241022",
-                max_tokens=1000,
-                temperature=0.7,
+                max_tokens=max_tokens,
+                temperature=temperature,
                 system=description,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -133,7 +157,7 @@ async def get_llm_response(prompt, llm, description):
                     "https://api.x.ai/v1/chat/completions",
                     headers={"Content-Type": "application/json", "Authorization": f"Bearer {XAI_API_KEY}"},
                     json={"messages": [{"role": "system", "content": description}, {"role": "user", "content": prompt}],
-                          "model": "grok-2-vision-1212", "stream": False, "temperature": 0.9}
+                          "model": "grok-2-vision-1212", "stream": False, "temperature": temperature}
                 )
                 response_data = response.json()
                 return re.sub(r'\*\*', '', response_data['choices'][0]['message']['content'])
@@ -170,7 +194,7 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     [f"{entry['role']}: {entry['message']}" for entry in interaction_history[chat_id][-5:]]
                 )
                 prompt = f"{details['description']}\nКонтекст:\n{context_messages}"
-                response = await get_llm_response(prompt, details['llm'], details['description'])
+                response = await get_llm_response(prompt, details['llm'], details['description'], details['max_tokens'], details['temperature'])
                 interaction_history[chat_id].append({'role': role_name, 'message': response})
                 await update.message.reply_text(f"Ответ от {details['llm']} для роли {role_name}:\n{response}")
                 await asyncio.sleep(2)  # Задержка между сообщениями
