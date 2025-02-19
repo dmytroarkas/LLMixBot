@@ -267,15 +267,15 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     async def dialog_loop():
         while True:
-            for role_name, details in user_roles[chat_id].items():
+            for role_id, details in user_roles[chat_id].items():
                 # Формируем контекст из последних сообщений
                 context_messages = "\n".join(
                     [f"{entry['role']}: {entry['message']}" for entry in interaction_history[chat_id][-5:]]
                 )
                 prompt = f"{details['description']}\nКонтекст:\n{context_messages}"
                 response = await get_llm_response(prompt, details['llm'], details['description'], details['max_tokens'], details['temperature'])
-                interaction_history[chat_id].append({'role': role_name, 'message': response})
-                await update.message.reply_text(f"Ответ от {details['llm']} для роли {role_name}:\n{response}")
+                interaction_history[chat_id].append({'role': details['name'], 'message': response})
+                await update.message.reply_text(f"{details['name']}:\n{response}")
                 await asyncio.sleep(3)  # Задержка в 3 секунды между сообщениями
 
     task = asyncio.create_task(dialog_loop())
