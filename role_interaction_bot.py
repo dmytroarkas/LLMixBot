@@ -72,9 +72,9 @@ async def edit_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Создаем кнопки для выбора роли
-    role_names = list(user_roles[chat_id].keys())
+    role_names = [(details['name'], role_id) for role_id, details in user_roles[chat_id].items()]
     keyboard = [
-        [InlineKeyboardButton(role_name, callback_data=f"edit_{i}")] for i, role_name in enumerate(role_names)
+        [InlineKeyboardButton(role_name, callback_data=f"edit_{role_id}")] for role_name, role_id in role_names
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Выберите роль, которую хотите отредактировать:", reply_markup=reply_markup)
@@ -168,13 +168,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.edit_reply_markup(reply_markup=None)
 
         elif query.data.startswith('edit_'):
-            _, role_index = query.data.split('_')
+            _, role_id = query.data.split('_')
             chat_id = query.message.chat_id
-            role_names = list(user_roles[chat_id].keys())
-            role_name = role_names[int(role_index)]
-            context.user_data['edit_role_name'] = role_name
-            await query.message.reply_text("Введите новое описание для роли:")
-            context.user_data['awaiting_new_role_description'] = True
+            role_name = user_roles[chat_id][role_id]['name']
+            # Здесь добавьте логику для редактирования роли
+            await query.message.reply_text(f"Редактирование роли {role_name} начато.")
             await query.message.edit_reply_markup(reply_markup=None)
 
         elif query.data.startswith('delete_'):
