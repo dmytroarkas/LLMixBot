@@ -2,6 +2,7 @@ import os
 import asyncio
 import httpx
 import re
+import uuid
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
 from dotenv import load_dotenv
@@ -19,7 +20,8 @@ XAI_API_KEY = os.getenv('XAI_API_KEY')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Глобальные переменные для хранения состояний
-user_roles = {}  # формат: {chat_id: {'role_name': {'description': '...', 'llm': '...', 'max_tokens': int, 'temperature': float}}}
+user_roles = {}  # формат: {chat_id: {role_id: {'name': 'role_name', 'description': '...', 'llm': '...', 'max_tokens': int, 'temperature': float}}}
+role_ids = {}  # формат: {chat_id: {role_name: role_id}}
 interaction_history = {}  # формат: {chat_id: [{'role': 'role_name', 'message': 'text'}]}
 chat_tasks = {}  # формат: {chat_id: task}
 
@@ -41,6 +43,14 @@ WELCOME_MESSAGE = """
 
 Используйте эти команды для управления ролями и их взаимодействием.
 """
+
+def generate_unique_role_id(chat_id, role_name):
+    """Генерирует уникальный идентификатор для роли."""
+    role_id = str(uuid.uuid4())
+    while role_id in user_roles.get(chat_id, {}):
+        role_id = str(uuid.uuid4())
+    role_ids.setdefault(chat_id, {})[role_name] = role_id
+    return role_id
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -78,19 +88,23 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_roles[chat_id] = {}
 
     if context.user_data.get('awaiting_role_name'):
-        context.user_data['role_name'] = message_text
+        role_name = message_text
+        role_id = generate_unique_role_id(chat_id, role_name)
+        context.user_data['role_id'] = role_id
+        context.user_data['role_name'] = role_name
         context.user_data['awaiting_role_name'] = False
         await update.message.reply_text("Введите описание (промпт) для роли:")
         context.user_data['awaiting_role_description'] = True
         return
 
     if context.user_data.get('awaiting_role_description'):
+        role_id = context.user_data['role_id']
         role_name = context.user_data['role_name']
-        user_roles[chat_id][role_name] = {'description': message_text, 'llm': None, 'max_tokens': 1000, 'temperature': 0.7}
+        user_roles[chat_id][role_id] = {'name': role_name, 'description': message_text, 'llm': None, 'max_tokens': 1000, 'temperature': 0.7}
         context.user_data['awaiting_role_description'] = False
         await update.message.reply_text("Выберите модель LLM для роли:")
         keyboard = [
-            [InlineKeyboardButton(llm, callback_data=f"assign_{role_name[:10]}_{llm[:10]}") for llm in AVAILABLE_LLM]
+            [InlineKeyboardButton(llm, callback_data=f"assign_{role_id}_{llm[:10]}") for llm in AVAILABLE_LLM]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text("Выберите LLM:", reply_markup=reply_markup)
@@ -141,24 +155,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.message.reply_text("Ошибка: неверный формат данных кнопки.")
                 return
 
-            _, role_index_str, llm = parts
-
-            # Проверка, что role_index_str является числом
-            if not role_index_str.isdigit():
-                await query.message.reply_text("Ошибка: индекс роли должен быть числом.")
-                return
-
-            role_index = int(role_index_str)
+            _, role_id, llm = parts
             chat_id = query.message.chat_id
-            role_names = list(user_roles[chat_id].keys())
 
-            # Проверка корректности индекса
-            if role_index < 0 or role_index >= len(role_names):
-                await query.message.reply_text("Ошибка: неверный индекс роли.")
+            if role_id not in user_roles[chat_id]:
+                await query.message.reply_text("Ошибка: неверный идентификатор роли.")
                 return
 
-            role_name = role_names[role_index]
-            user_roles[chat_id][role_name]['llm'] = llm
+            user_roles[chat_id][role_id]['llm'] = llm
+            role_name = user_roles[chat_id][role_id]['name']
             await query.message.reply_text(f"Роль {role_name} назначена на {llm}.")
             await query.message.edit_reply_markup(reply_markup=None)
 
@@ -193,7 +198,7 @@ async def view_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     roles_info = "Текущие настройки ролей:\n"
     for role_name, details in user_roles[chat_id].items():
-        roles_info += (f"Роль: {role_name}\nОписание: {details['description']}\n"
+        roles_info += (f"Роль: {details['name']}\nОписание: {details['description']}\n"
                        f"LLM: {details['llm']}\nМакс. длина: {details['max_tokens']}\n"
                        f"Температура: {details['temperature']}\n\n")
     
