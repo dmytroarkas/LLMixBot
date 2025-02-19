@@ -120,10 +120,10 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     if query.data.startswith('assign_'):
-        _, role_index, llm = query.data.split('_')
+        _, role_name, llm = query.data.split('_')
         chat_id = query.message.chat_id
         role_names = list(user_roles[chat_id].keys())
-        role_name = role_names[int(role_index)]
+        role_name = next((name for name in role_names if name.startswith(role_name)), role_name)
         user_roles[chat_id][role_name]['llm'] = llm
         await query.message.reply_text(f"Роль {role_name} назначена на {llm}.")
         await query.message.edit_reply_markup(reply_markup=None)
