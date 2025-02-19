@@ -63,7 +63,7 @@ async def edit_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Создаем кнопки для выбора роли
     role_names = list(user_roles[chat_id].keys())
     keyboard = [
-        [InlineKeyboardButton(role_name, callback_data=f"edit_{i}") for i, role_name in enumerate(role_names)]
+        [InlineKeyboardButton(role_name, callback_data=f"edit_{i}")] for i, role_name in enumerate(role_names)
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Выберите роль, которую хотите отредактировать:", reply_markup=reply_markup)
