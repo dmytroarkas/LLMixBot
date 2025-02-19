@@ -36,6 +36,7 @@ WELCOME_MESSAGE = """
 /startdialog - Запустить диалог ролей
 /stop - Остановить текущий диалог
 /clearroles - Очистить все настроенные роли
+/editrole - Редактировать описание роли
 
 Используйте эти команды для управления ролями и их взаимодействием.
 """
@@ -52,6 +53,19 @@ async def add_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Ожидаем следующего сообщения от пользователя
     context.user_data['awaiting_role_name'] = True
+
+async def edit_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if chat_id not in user_roles or not user_roles[chat_id]:
+        await update.message.reply_text("Нет настроенных ролей для редактирования. Используйте /addrole для добавления.")
+        return
+
+    # Создаем кнопки для выбора роли
+    keyboard = [
+        [InlineKeyboardButton(role_name, callback_data=f"edit_{role_name}") for role_name in user_roles[chat_id]]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Выберите роль, которую хотите отредактировать:", reply_markup=reply_markup)
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -72,34 +86,30 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         role_name = context.user_data['role_name']
         user_roles[chat_id][role_name] = {'description': message_text, 'llm': None, 'max_tokens': 1000, 'temperature': 0.7}
         context.user_data['awaiting_role_description'] = False
-        await update.message.reply_text("Введите максимальную длину сообщений (например, 1000):")
-        context.user_data['awaiting_max_tokens'] = True
+        await update.message.reply_text("Выберите модель LLM для роли:")
+        keyboard = [
+            [InlineKeyboardButton(llm, callback_data=f"assign_{role_name}_{llm}") for llm in AVAILABLE_LLM]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("Выберите LLM:", reply_markup=reply_markup)
         return
 
-    if context.user_data.get('awaiting_max_tokens'):
-        try:
-            max_tokens = int(message_text)
-            user_roles[chat_id][context.user_data['role_name']]['max_tokens'] = max_tokens
-            context.user_data['awaiting_max_tokens'] = False
-            await update.message.reply_text("Введите температуру для LLM (например, 0.7):")
-            context.user_data['awaiting_temperature'] = True
-        except ValueError:
-            await update.message.reply_text("Пожалуйста, введите корректное число для длины сообщений.")
+    if context.user_data.get('awaiting_edit_role_name'):
+        role_name = message_text
+        if role_name in user_roles[chat_id]:
+            context.user_data['edit_role_name'] = role_name
+            context.user_data['awaiting_edit_role_name'] = False
+            await update.message.reply_text("Введите новое описание для роли:")
+            context.user_data['awaiting_new_role_description'] = True
+        else:
+            await update.message.reply_text("Роль не найдена. Пожалуйста, введите корректное название роли.")
         return
 
-    if context.user_data.get('awaiting_temperature'):
-        try:
-            temperature = float(message_text)
-            user_roles[chat_id][context.user_data['role_name']]['temperature'] = temperature
-            context.user_data['awaiting_temperature'] = False
-            await update.message.reply_text("Выберите модель LLM для роли:")
-            keyboard = [
-                [InlineKeyboardButton(llm, callback_data=f"assign_{context.user_data['role_name']}_{llm}") for llm in AVAILABLE_LLM]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text("Выберите LLM:", reply_markup=reply_markup)
-        except ValueError:
-            await update.message.reply_text("Пожалуйста, введите корректное число для температуры.")
+    if context.user_data.get('awaiting_new_role_description'):
+        role_name = context.user_data['edit_role_name']
+        user_roles[chat_id][role_name]['description'] = message_text
+        context.user_data['awaiting_new_role_description'] = False
+        await update.message.reply_text(f"Описание для роли {role_name} обновлено.")
         return
 
     await update.message.reply_text("Используйте /addrole для добавления новой роли.")
@@ -113,6 +123,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = query.message.chat_id
         user_roles[chat_id][role_name]['llm'] = llm
         await query.message.reply_text(f"Роль {role_name} назначена на {llm}.")
+        await query.message.edit_reply_markup(reply_markup=None)
+
+    elif query.data.startswith('edit_'):
+        _, role_name = query.data.split('_')
+        chat_id = query.message.chat_id
+        context.user_data['edit_role_name'] = role_name
+        await query.message.reply_text("Введите новое описание для роли:")
+        context.user_data['awaiting_new_role_description'] = True
         await query.message.edit_reply_markup(reply_markup=None)
 
 async def view_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -226,6 +244,7 @@ def main():
     application.add_handler(CommandHandler("startdialog", start_dialog))
     application.add_handler(CommandHandler("stop", stop_dialog))
     application.add_handler(CommandHandler("clearroles", clear_roles))
+    application.add_handler(CommandHandler("editrole", edit_role))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
