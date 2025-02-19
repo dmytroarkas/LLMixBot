@@ -62,7 +62,7 @@ async def edit_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Создаем кнопки для выбора роли
     keyboard = [
-        [InlineKeyboardButton(role_name, callback_data=f"edit_{role_name}") for role_name in user_roles[chat_id]]
+        [InlineKeyboardButton(role_name, callback_data=f"edit_{i}") for i, role_name in enumerate(user_roles[chat_id])]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Выберите роль, которую хотите отредактировать:", reply_markup=reply_markup)
@@ -119,18 +119,17 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     if query.data.startswith('assign_'):
-        _, role_name, llm = query.data.split('_')
+        _, role_index, llm = query.data.split('_')
         chat_id = query.message.chat_id
-        # Найдите полное имя роли и модели, если они были обрезаны
-        full_role_name = next((name for name in user_roles[chat_id] if name.startswith(role_name)), role_name)
-        full_llm = next((model for model in AVAILABLE_LLM if model.startswith(llm)), llm)
-        user_roles[chat_id][full_role_name]['llm'] = full_llm
-        await query.message.reply_text(f"Роль {full_role_name} назначена на {full_llm}.")
+        role_name = list(user_roles[chat_id].keys())[int(role_index)]
+        user_roles[chat_id][role_name]['llm'] = llm
+        await query.message.reply_text(f"Роль {role_name} назначена на {llm}.")
         await query.message.edit_reply_markup(reply_markup=None)
 
     elif query.data.startswith('edit_'):
-        _, role_name = query.data.split('_')
+        _, role_index = query.data.split('_')
         chat_id = query.message.chat_id
+        role_name = list(user_roles[chat_id].keys())[int(role_index)]
         context.user_data['edit_role_name'] = role_name
         await query.message.reply_text("Введите новое описание для роли:")
         context.user_data['awaiting_new_role_description'] = True
