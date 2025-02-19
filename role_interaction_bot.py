@@ -139,6 +139,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             _, role_index, llm = query.data.split('_')
             chat_id = query.message.chat_id
             role_names = list(user_roles[chat_id].keys())
+
+            # Проверка корректности индекса
+            if int(role_index) < 0 or int(role_index) >= len(role_names):
+                await query.message.reply_text("Ошибка: неверный индекс роли.")
+                return
+
             role_name = role_names[int(role_index)]
             user_roles[chat_id][role_name]['llm'] = llm
             await query.message.reply_text(f"Роль {role_name} назначена на {llm}.")
