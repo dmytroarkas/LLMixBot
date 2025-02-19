@@ -1,13 +1,97 @@
+<<<<<<< HEAD
+import os
+import asyncio
+import httpx
+import re
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
+from anthropic import Anthropic
+
+# Загрузка переменных окружения
+load_dotenv()
+
+# Получение токена Telegram и API ключей
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
+XAI_API_KEY = os.getenv('XAI_API_KEY')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+
+# Глобальные переменные для хранения состояний
+user_roles = {}  # формат: {chat_id: {'role_name': {'description': '...', 'llm': '...', 'max_tokens': int, 'temperature': float}}}
+interaction_history = {}  # формат: {chat_id: [{'role': 'role_name', 'message': 'text'}]}
+chat_tasks = {}  # формат: {chat_id: task}
+
+# Доступные LLM
+AVAILABLE_LLM = ['OpenAI', 'Anthropic', 'xAI', 'Gemini']
+
+# Глобальный словарь для хранения уникальных идентификаторов ролей
+role_ids = {}  # формат: {chat_id: {role_name: unique_id}}
+
+def generate_unique_id(chat_id):
+    """Генерирует уникальный идентификатор для роли в данном чате."""
+    if chat_id not in role_ids:
+        role_ids[chat_id] = {}
+    existing_ids = set(role_ids[chat_id].values())
+    new_id = 0
+    while new_id in existing_ids:
+        new_id += 1
+    return new_id
+
+WELCOME_MESSAGE = """
+Добро пожаловать в бота для настройки ролей!
+
+Доступные команды:
+/start - Показать это приветственное сообщение
+/addrole - Добавить новую роль
+/viewroles - Просмотреть текущие настройки ролей
+/startdialog - Запустить диалог ролей
+/stop - Остановить текущий диалог
+/clearroles - Очистить все настроенные роли
+/editrole - Редактировать описание роли
+/deleterole - Удалить существующую роль
+
+Используйте эти команды для управления ролями и их взаимодействием.
+"""
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    user_roles[chat_id] = {}
+    interaction_history[chat_id] = []
+    await update.message.reply_text(WELCOME_MESSAGE)
+
+async def add_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    await update.message.reply_text("Введите название новой роли:")
+    context.user_data['awaiting_role_name'] = True
+
+async def edit_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if chat_id not in user_roles or not user_roles[chat_id]:
+        await update.message.reply_text("Нет настроенных ролей для редактирования. Используйте /addrole для добавления.")
+        return
+
+    # Создаем кнопки для выбора роли
+    role_names = list(user_roles[chat_id].keys())
+    keyboard = [
+        [InlineKeyboardButton(role_name, callback_data=f"edit_{i}")] for i, role_name in enumerate(role_names)
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Выберите роль, которую хотите отредактировать:", reply_markup=reply_markup)
+
+=======
+>>>>>>> 401afa9c907c24aa76d2dd278cfc0e112dd5cf24
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     message_text = update.message.text
 
-    # Инициализация записи для chat_id, если она отсутствует
-    if chat_id not in user_roles:
-        user_roles[chat_id] = {}
-
     if context.user_data.get('awaiting_role_name'):
-        context.user_data['role_name'] = message_text
+        role_name = message_text
+        unique_id = generate_unique_id(chat_id)
+        role_ids[chat_id][role_name] = unique_id
+        context.user_data['role_name'] = role_name
         context.user_data['awaiting_role_name'] = False
         await update.message.reply_text("Введите описание (промпт) для роли:")
         context.user_data['awaiting_role_description'] = True
@@ -51,6 +135,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         if query.data.startswith('assign_'):
+<<<<<<< HEAD
+            _, role_id_str, llm = query.data.split('_')
+            chat_id = query.message.chat_id
+
+            # Поиск имени роли по уникальному идентификатору
+            role_name = next((name for name, id in role_ids[chat_id].items() if str(id) == role_id_str), None)
+            if role_name is None:
+=======
             parts = query.data.split('_')
             if len(parts) != 3:
                 await query.message.reply_text("Ошибка: неверный формат данных кнопки.")
@@ -61,6 +153,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id = query.message.chat_id
 
             if role_name not in user_roles[chat_id]:
+>>>>>>> 401afa9c907c24aa76d2dd278cfc0e112dd5cf24
                 await query.message.reply_text("Ошибка: роль не найдена.")
                 return
 
