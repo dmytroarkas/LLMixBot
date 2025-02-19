@@ -37,6 +37,7 @@ WELCOME_MESSAGE = """
 /stop - Остановить текущий диалог
 /clearroles - Очистить все настроенные роли
 /editrole - Редактировать описание роли
+/deleterole - Удалить существующую роль
 
 Используйте эти команды для управления ролями и их взаимодействием.
 """
@@ -115,15 +116,29 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("Используйте /addrole для добавления новой роли.")
 
+async def delete_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if chat_id not in user_roles or not user_roles[chat_id]:
+        await update.message.reply_text("Нет настроенных ролей для удаления. Используйте /addrole для добавления.")
+        return
+
+    # Создаем кнопки для выбора роли
+    role_names = list(user_roles[chat_id].keys())
+    keyboard = [
+        [InlineKeyboardButton(role_name, callback_data=f"delete_{i}")] for i, role_name in enumerate(role_names)
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Выберите роль, которую хотите удалить:", reply_markup=reply_markup)
+
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
     if query.data.startswith('assign_'):
-        _, role_name, llm = query.data.split('_')
+        _, role_index, llm = query.data.split('_')
         chat_id = query.message.chat_id
         role_names = list(user_roles[chat_id].keys())
-        role_name = next((name for name in role_names if name.startswith(role_name)), role_name)
+        role_name = role_names[int(role_index)]
         user_roles[chat_id][role_name]['llm'] = llm
         await query.message.reply_text(f"Роль {role_name} назначена на {llm}.")
         await query.message.edit_reply_markup(reply_markup=None)
@@ -136,6 +151,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['edit_role_name'] = role_name
         await query.message.reply_text("Введите новое описание для роли:")
         context.user_data['awaiting_new_role_description'] = True
+        await query.message.edit_reply_markup(reply_markup=None)
+
+    elif query.data.startswith('delete_'):
+        _, role_index = query.data.split('_')
+        chat_id = query.message.chat_id
+        role_names = list(user_roles[chat_id].keys())
+        role_name = role_names[int(role_index)]
+        del user_roles[chat_id][role_name]
+        await query.message.reply_text(f"Роль {role_name} была удалена.")
         await query.message.edit_reply_markup(reply_markup=None)
 
 async def view_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -250,6 +274,7 @@ def main():
     application.add_handler(CommandHandler("stop", stop_dialog))
     application.add_handler(CommandHandler("clearroles", clear_roles))
     application.add_handler(CommandHandler("editrole", edit_role))
+    application.add_handler(CommandHandler("deleterole", delete_role))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
