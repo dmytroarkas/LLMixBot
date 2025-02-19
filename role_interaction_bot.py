@@ -136,16 +136,28 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         if query.data.startswith('assign_'):
-            _, role_index, llm = query.data.split('_')
+            parts = query.data.split('_')
+            if len(parts) != 3:
+                await query.message.reply_text("Ошибка: неверный формат данных кнопки.")
+                return
+
+            _, role_index_str, llm = parts
+
+            # Проверка, что role_index_str является числом
+            if not role_index_str.isdigit():
+                await query.message.reply_text("Ошибка: индекс роли должен быть числом.")
+                return
+
+            role_index = int(role_index_str)
             chat_id = query.message.chat_id
             role_names = list(user_roles[chat_id].keys())
 
             # Проверка корректности индекса
-            if int(role_index) < 0 or int(role_index) >= len(role_names):
+            if role_index < 0 or role_index >= len(role_names):
                 await query.message.reply_text("Ошибка: неверный индекс роли.")
                 return
 
-            role_name = role_names[int(role_index)]
+            role_name = role_names[role_index]
             user_roles[chat_id][role_name]['llm'] = llm
             await query.message.reply_text(f"Роль {role_name} назначена на {llm}.")
             await query.message.edit_reply_markup(reply_markup=None)
