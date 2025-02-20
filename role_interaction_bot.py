@@ -306,7 +306,13 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
                 prompt = f"{details['description']}\nКонтекст:\n{context_messages}"
                 response = await get_llm_response(prompt, details['llm'], details['description'], details['max_tokens'], details['temperature'])
                 interaction_history[chat_id].append({'role': details['name'], 'message': response})
-                await update.callback_query.message.reply_text(f"{details['name']}:\n{response}")
+                
+                # Используем правильный объект для отправки сообщений
+                if from_button:
+                    await update.callback_query.message.reply_text(f"{details['name']}:\n{response}")
+                else:
+                    await update.message.reply_text(f"{details['name']}:\n{response}")
+                
                 await asyncio.sleep(3)  # Задержка в 3 секунды между сообщениями
 
             cycle_count += 1
@@ -316,7 +322,12 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
                     [InlineKeyboardButton("Закончить обсуждение", callback_data="end_dialog")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await update.callback_query.message.reply_text("5 циклов обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
+                
+                if from_button:
+                    await update.callback_query.message.reply_text("5 циклов обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
+                else:
+                    await update.message.reply_text("5 циклов обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
+                
                 break
 
     task = asyncio.create_task(dialog_loop())
