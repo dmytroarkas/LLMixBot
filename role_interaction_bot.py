@@ -303,7 +303,7 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
         cycle_count = 0
         while True:
             for role_id, details in user_roles[chat_id].items():
-                # Формируем контекст из последних сообщений
+                # Используем сохраненную историю взаимодействий
                 context_messages = "\n".join(
                     [f"{entry['role']}: {entry['message']}" for entry in interaction_history[chat_id][-5:]]
                 )
