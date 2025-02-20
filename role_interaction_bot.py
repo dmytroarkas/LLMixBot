@@ -160,13 +160,17 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     try:
+        chat_id = query.message.chat_id
+
         if query.data == "continue_dialog":
+            if chat_id in chat_tasks:
+                chat_tasks[chat_id].cancel()
+                del chat_tasks[chat_id]
             await query.message.reply_text("Продолжаем обсуждение.")
-            asyncio.create_task(start_dialog(update, context, from_button=True))  # Перезапускаем диалог
+            asyncio.create_task(start_dialog(update, context, from_button=True))
             await query.message.edit_reply_markup(reply_markup=None)
 
         elif query.data == "end_dialog":
-            chat_id = query.message.chat_id
             if chat_id in chat_tasks:
                 chat_tasks[chat_id].cancel()
                 del chat_tasks[chat_id]
@@ -316,7 +320,7 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
                 await asyncio.sleep(3)  # Задержка в 3 секунды между сообщениями
 
             cycle_count += 1
-            if cycle_count >= 5:
+            if cycle_count >= 3:  # Изменено количество циклов на 3
                 keyboard = [
                     [InlineKeyboardButton("Продолжить обсуждение", callback_data="continue_dialog")],
                     [InlineKeyboardButton("Закончить обсуждение", callback_data="end_dialog")]
@@ -324,9 +328,9 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 if from_button:
-                    await update.callback_query.message.reply_text("5 циклов обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
+                    await update.callback_query.message.reply_text("3 цикла обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
                 else:
-                    await update.message.reply_text("5 циклов обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
+                    await update.message.reply_text("3 цикла обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
                 
                 break
 
