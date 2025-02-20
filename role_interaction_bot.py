@@ -163,10 +163,10 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = query.message.chat_id
 
         if query.data == "continue_dialog":
+            await query.message.reply_text("Продолжаем обсуждение.")
             if chat_id in chat_tasks:
                 chat_tasks[chat_id].cancel()
                 del chat_tasks[chat_id]
-            await query.message.reply_text("Продолжаем обсуждение.")
             asyncio.create_task(start_dialog(update, context, from_button=True))
             await query.message.edit_reply_markup(reply_markup=None)
 
@@ -283,7 +283,7 @@ async def get_llm_response(prompt, llm, description, max_tokens, temperature):
 
 async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_button=False):
     chat_id = update.effective_chat.id if not from_button else update.callback_query.message.chat_id
-    if chat_id in chat_tasks:
+    if chat_id in chat_tasks and not from_button:
         if from_button:
             await update.callback_query.message.reply_text("Диалог уже запущен. Используйте /stop для остановки.")
         else:
@@ -336,9 +336,7 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
 
     task = asyncio.create_task(dialog_loop())
     chat_tasks[chat_id] = task
-    if from_button:
-        await update.callback_query.message.reply_text("Диалог ролей запущен.")
-    else:
+    if not from_button:
         await update.message.reply_text("Диалог ролей запущен.")
 
 async def stop_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE):
