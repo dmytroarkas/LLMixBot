@@ -293,6 +293,8 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
             await update.message.reply_text("Нет настроенных ролей. Используйте /addrole для добавления.")
         return
 
+    print(f"Запуск диалога для chat_id: {chat_id} с ролями: {user_roles[chat_id]}")  # Отладочное сообщение
+
     async def dialog_loop():
         cycle_count = 0
         while True:
@@ -308,13 +310,13 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
                 await asyncio.sleep(3)  # Задержка в 3 секунды между сообщениями
 
             cycle_count += 1
-            if cycle_count >= 3:
+            if cycle_count >= 5:
                 keyboard = [
                     [InlineKeyboardButton("Продолжить обсуждение", callback_data="continue_dialog")],
                     [InlineKeyboardButton("Закончить обсуждение", callback_data="end_dialog")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await update.callback_query.message.reply_text("3 цикла обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
+                await update.callback_query.message.reply_text("5 циклов обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
                 break
 
     task = asyncio.create_task(dialog_loop())
