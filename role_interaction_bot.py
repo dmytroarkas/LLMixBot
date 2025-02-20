@@ -42,6 +42,8 @@ WELCOME_MESSAGE = """
 /deleterole - Удалить существующую роль
 
 Используйте эти команды для управления ролями и их взаимодействием.
+
+Помните, что начало и поддержка диалога зависит от промптов ваших ролей. Если промпты прописаны не четко, диалог может не начаться или не поддерживаться.
 """
 
 def generate_unique_role_id(chat_id, role_name):
@@ -156,7 +158,21 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     try:
-        if query.data.startswith('assign_'):
+        if query.data == "continue_dialog":
+            chat_id = query.message.chat_id
+            await query.message.reply_text("Продолжаем обсуждение.")
+            asyncio.create_task(start_dialog(update, context))  # Перезапускаем диалог
+            await query.message.edit_reply_markup(reply_markup=None)
+
+        elif query.data == "end_dialog":
+            chat_id = query.message.chat_id
+            if chat_id in chat_tasks:
+                chat_tasks[chat_id].cancel()
+                del chat_tasks[chat_id]
+            await query.message.reply_text("Обсуждение завершено.")
+            await query.message.edit_reply_markup(reply_markup=None)
+
+        elif query.data.startswith('assign_'):
             parts = query.data.split('_')
             if len(parts) != 3:
                 await query.message.reply_text("Ошибка: неверный формат данных кнопки.")
@@ -271,6 +287,7 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     async def dialog_loop():
+        cycle_count = 0
         while True:
             for role_id, details in user_roles[chat_id].items():
                 # Формируем контекст из последних сообщений
@@ -282,6 +299,16 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 interaction_history[chat_id].append({'role': details['name'], 'message': response})
                 await update.message.reply_text(f"{details['name']}:\n{response}")
                 await asyncio.sleep(3)  # Задержка в 3 секунды между сообщениями
+
+            cycle_count += 1
+            if cycle_count >= 5:
+                keyboard = [
+                    [InlineKeyboardButton("Продолжить обсуждение", callback_data="continue_dialog")],
+                    [InlineKeyboardButton("Закончить обсуждение", callback_data="end_dialog")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await update.message.reply_text("5 циклов обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
+                break
 
     task = asyncio.create_task(dialog_loop())
     chat_tasks[chat_id] = task
