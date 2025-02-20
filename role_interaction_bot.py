@@ -283,7 +283,7 @@ async def get_llm_response(prompt, llm, description, max_tokens, temperature):
 
 async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_button=False):
     chat_id = update.effective_chat.id if not from_button else update.callback_query.message.chat_id
-    if chat_id in chat_tasks and not from_button:
+    if chat_id in chat_tasks:
         if from_button:
             await update.callback_query.message.reply_text("Диалог уже запущен. Используйте /stop для остановки.")
         else:
