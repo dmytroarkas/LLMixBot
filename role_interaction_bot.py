@@ -286,7 +286,7 @@ async def get_llm_response(prompt, llm, description, max_tokens, temperature):
 
 async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_button=False):
     chat_id = update.effective_chat.id if not from_button else update.callback_query.message.chat_id
-    if chat_id in chat_tasks:
+    if chat_id in chat_tasks and not from_button:
         if from_button:
             await update.callback_query.message.reply_text("Диалог уже запущен. Используйте /stop для остановки.")
         else:
@@ -306,7 +306,7 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
         cycle_count = 0
         while True:
             for role_id, details in user_roles[chat_id].items():
-                # Формируем контекст из последних сообщений
+                # Используем сохраненную историю взаимодействий
                 context_messages = "\n".join(
                     [f"{entry['role']}: {entry['message']}" for entry in interaction_history[chat_id][-5:]]
                 )
