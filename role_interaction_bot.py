@@ -128,6 +128,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Описание для роли {role_name} обновлено.")
         return
 
+    if context.user_data.get('awaiting_new_description'):
+        role_id = context.user_data['editing_role_id']
+        user_roles[chat_id][role_id]['description'] = message_text
+        context.user_data['awaiting_new_description'] = False
+        await update.message.reply_text("Описание роли обновлено.")
+        return
+
     await update.message.reply_text("Используйте /addrole для добавления новой роли.")
 
 async def delete_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -171,9 +178,10 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             _, role_id = query.data.split('_')
             chat_id = query.message.chat_id
             role_name = user_roles[chat_id][role_id]['name']
-            # Здесь добавьте логику для редактирования роли
-            await query.message.reply_text(f"Редактирование роли {role_name} начато.")
+            context.user_data['editing_role_id'] = role_id
+            await query.message.reply_text(f"Редактирование роли {role_name} начато. Введите новое описание:")
             await query.message.edit_reply_markup(reply_markup=None)
+            context.user_data['awaiting_new_description'] = True
 
         elif query.data.startswith('delete_'):
             _, role_id = query.data.split('_')
