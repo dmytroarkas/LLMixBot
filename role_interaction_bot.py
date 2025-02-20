@@ -44,6 +44,8 @@ WELCOME_MESSAGE = """
 Используйте эти команды для управления ролями и их взаимодействием.
 
 Помните, что начало и поддержка диалога зависит от промптов ваших ролей. Если промпты прописаны не четко, диалог может не начаться или не поддерживаться.
+
+Длину сообщений в диалоге можно регулировать в промптах ваших ролей.
 """
 
 def generate_unique_role_id(chat_id, role_name):
@@ -159,9 +161,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         if query.data == "continue_dialog":
-            chat_id = query.message.chat_id
             await query.message.reply_text("Продолжаем обсуждение.")
-            asyncio.create_task(start_dialog(update, context))  # Перезапускаем диалог
+            asyncio.create_task(start_dialog(update, context, from_button=True))  # Перезапускаем диалог
             await query.message.edit_reply_markup(reply_markup=None)
 
         elif query.data == "end_dialog":
@@ -276,14 +277,20 @@ async def get_llm_response(prompt, llm, description, max_tokens, temperature):
     except Exception as e:
         return f"Ошибка: {str(e)}"
 
-async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
+async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_button=False):
+    chat_id = update.effective_chat.id if not from_button else update.callback_query.message.chat_id
     if chat_id in chat_tasks:
-        await update.message.reply_text("Диалог уже запущен. Используйте /stop для остановки.")
+        if from_button:
+            await update.callback_query.message.reply_text("Диалог уже запущен. Используйте /stop для остановки.")
+        else:
+            await update.message.reply_text("Диалог уже запущен. Используйте /stop для остановки.")
         return
 
     if not user_roles.get(chat_id):
-        await update.message.reply_text("Нет настроенных ролей. Используйте /addrole для добавления.")
+        if from_button:
+            await update.callback_query.message.reply_text("Нет настроенных ролей. Используйте /addrole для добавления.")
+        else:
+            await update.message.reply_text("Нет настроенных ролей. Используйте /addrole для добавления.")
         return
 
     async def dialog_loop():
@@ -297,22 +304,25 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 prompt = f"{details['description']}\nКонтекст:\n{context_messages}"
                 response = await get_llm_response(prompt, details['llm'], details['description'], details['max_tokens'], details['temperature'])
                 interaction_history[chat_id].append({'role': details['name'], 'message': response})
-                await update.message.reply_text(f"{details['name']}:\n{response}")
+                await update.callback_query.message.reply_text(f"{details['name']}:\n{response}")
                 await asyncio.sleep(3)  # Задержка в 3 секунды между сообщениями
 
             cycle_count += 1
-            if cycle_count >= 5:
+            if cycle_count >= 3:
                 keyboard = [
                     [InlineKeyboardButton("Продолжить обсуждение", callback_data="continue_dialog")],
                     [InlineKeyboardButton("Закончить обсуждение", callback_data="end_dialog")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await update.message.reply_text("5 циклов обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
+                await update.callback_query.message.reply_text("3 цикла обсуждения завершены. Хотите продолжить?", reply_markup=reply_markup)
                 break
 
     task = asyncio.create_task(dialog_loop())
     chat_tasks[chat_id] = task
-    await update.message.reply_text("Диалог ролей запущен.")
+    if from_button:
+        await update.callback_query.message.reply_text("Диалог ролей запущен.")
+    else:
+        await update.message.reply_text("Диалог ролей запущен.")
 
 async def stop_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
