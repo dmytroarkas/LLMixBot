@@ -237,6 +237,9 @@ async def clear_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_llm_response(prompt, llm, description, max_tokens, temperature):
     try:
+        # Отладочное сообщение для проверки контекста
+        print(f"Отправка в LLM: {prompt}")
+
         if llm == 'OpenAI':
             client = AsyncOpenAI(api_key=OPENAI_API_KEY)
             response = await client.chat.completions.create(
@@ -303,11 +306,15 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
         cycle_count = 0
         while True:
             for role_id, details in user_roles[chat_id].items():
-                # Используем сохраненную историю взаимодействий
+                # Формируем контекст из последних сообщений
                 context_messages = "\n".join(
                     [f"{entry['role']}: {entry['message']}" for entry in interaction_history[chat_id][-5:]]
                 )
                 prompt = f"{details['description']}\nКонтекст:\n{context_messages}"
+                
+                # Отладочное сообщение для проверки контекста
+                print(f"Контекст для {details['name']}: {context_messages}")
+
                 response = await get_llm_response(prompt, details['llm'], details['description'], details['max_tokens'], details['temperature'])
                 interaction_history[chat_id].append({'role': details['name'], 'message': response})
                 
@@ -320,7 +327,7 @@ async def start_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
                 await asyncio.sleep(3)  # Задержка в 3 секунды между сообщениями
 
             cycle_count += 1
-            if cycle_count >= 3:  # Изменено количество циклов на 3
+            if cycle_count >= 3:
                 keyboard = [
                     [InlineKeyboardButton("Продолжить обсуждение", callback_data="continue_dialog")],
                     [InlineKeyboardButton("Закончить обсуждение", callback_data="end_dialog")]
